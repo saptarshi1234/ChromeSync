@@ -1,0 +1,10 @@
+{
+  "extName": {
+    "message": "All-in-one Party",
+    "description": "Extension name"
+  },
+  "extDescription": {
+    "message": "Includes logic from Netflix Party",
+    "description": "none"
+  }
+}
