@@ -1,20 +1,22 @@
-//////////////////////////////////////////////////////////////////////////
+/* eslint-disable max-len */
+// ////////////////////////////////////////////////////////////////////////
 // Configuration                                                        //
-//////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////
 
 // express
-var express = require('express');
-var app = express();
+const express = require('express');
+const app = express();
 
 // socket.io
-var http = require('http').Server(app);
-var io = require('socket.io')(http);
+// eslint-disable-next-line new-cap
+const http = require('http').Server(app);
+const io = require('socket.io')(http);
 
 // lodash
-var lodash = require('lodash');
+const lodash = require('lodash');
 
 // request logging
-var morgan = require('morgan')
+const morgan = require('morgan');
 app.use(morgan('short'));
 
 // turn off unnecessary header
@@ -29,14 +31,15 @@ app.enable('trust proxy');
 // add CORS headers
 app.use(function(req, res, next) {
   res.setHeader('Access-Control-Allow-Origin', '*');
+  // eslint-disable-next-line max-len
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, PATCH, DELETE');
   res.setHeader('Access-Control-Allow-Credentials', true);
   next();
 });
 
-//////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////
 // State                                                                //
-//////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////
 /*
  in-memory store of all the sessions
  the keys are the session IDs (strings)
@@ -58,11 +61,11 @@ app.use(function(req, res, next) {
      ]
     }
   ],
-   
+
  }
 */
-var sessions = {};
-/* 
+let sessions = {};
+/*
  in-memory store of all the users
  the keys are the user IDs (strings)
  the values have the form: {
@@ -71,21 +74,22 @@ var sessions = {};
    socket: <websocket>,           // the websocket
  }
   */
-var users = {};
+let users = {};
 
 // generate a random ID with 64 bits of entropy
+// eslint-disable-next-line require-jsdoc
 function makeId() {
-  var result = '';
-  var hexChars = '0123456789abcdef';
-  for (var i = 0; i < 16; i += 1) {
+  let result = '';
+  const hexChars = '0123456789abcdef';
+  for (let i = 0; i < 16; i += 1) {
     result += hexChars[Math.floor(Math.random() * 16)];
   }
   return result;
 }
 
-//////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////
 // Web endpoints                                                        //
-//////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////
 
 // health check
 app.get('/healthz', function(req, res) {
@@ -105,23 +109,23 @@ app.get('/number-of-users', function(req, res) {
   res.send(String(Object.keys(users).length));
 });
 
-app.get('/session-details',function (req,res) {
-  res.setHeader('Content-Type','application/json')
-  res.send(JSON.stringify(sessions))
+app.get('/session-details', function(req, res) {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(JSON.stringify(sessions));
 });
 
-app.post('/reset',function (req,res) {
+app.post('/reset', function(req, res) {
   sessions={};
   users={};
-  res.status(200).send()
+  res.status(200).send();
 });
 
-//////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////
 // Websockets API                                                       //
-//////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////
 
 io.on('connection', function(socket) {
-  var userId = makeId();
+  let userId = makeId();
   while (users.hasOwnProperty(userId)) {
     userId = makeId();
   }
@@ -134,9 +138,8 @@ io.on('connection', function(socket) {
   console.log('User ' + userId + ' connected.');
 
   // precondition: user userId is in a session
-  var leaveSession = function(broadcast) {
-
-    var sessionId = users[userId].sessionId;
+  const leaveSession = function(broadcast) {
+    const sessionId = users[userId].sessionId;
     lodash.pull(sessions[sessionId].userIds, userId);
     users[userId].sessionId = null;
 
@@ -153,65 +156,63 @@ io.on('connection', function(socket) {
 
   socket.on('createSession', function(data, fn) {
     if (!users.hasOwnProperty(userId)) {
-      fn({ errorMessage: 'Disconnected.' });
+      fn({errorMessage: 'Disconnected.'});
       console.log('The socket received a message after it was disconnected.');
       return;
     }
 
-    var sessionId = makeId();
+    let sessionId = makeId();
     while (sessions.hasOwnProperty(sessionId)) {
       sessionId = makeId();
     }
-    var session = {
-      id : sessionId,
+    const session = {
+      id: sessionId,
       ownerId: userId,
-      userIds : [userId],
-      activeTabs : [],
-    }
+      userIds: [userId],
+      activeTabs: [],
+    };
 
     sessions[sessionId] = session;
-    fn({sessionId})
-
+    fn({sessionId});
   });
 
   socket.on('joinSession', function(sessionId, fn) {
     if (!users.hasOwnProperty(userId)) {
-      fn({ errorMessage: 'Disconnected.' });
+      fn({errorMessage: 'Disconnected.'});
       console.log('The socket received a message after it was disconnected.');
       return;
     }
 
     if (!sessions.hasOwnProperty(sessionId)) {
-      fn({ errorMessage: 'Invalid session ID.' });
+      fn({errorMessage: 'Invalid session ID.'});
       console.log('User ' + userId + ' attempted to join nonexistent session ' + JSON.stringify(sessionId) + '.');
       return;
     }
 
     if (users[userId].sessionId !== null) {
-      fn({ errorMessage: 'Already in a session.' });
+      fn({errorMessage: 'Already in a session.'});
       console.log('User ' + userId + ' attempted to join session ' + sessionId + ', but the user is already in session ' + users[userId].sessionId + '.');
       return;
     }
 
     users[userId].sessionId = sessionId;
     sessions[sessionId].userIds.push(userId);
-
   });
 
   socket.on('leaveSession', function(_, fn) {
     if (!users.hasOwnProperty(userId)) {
-      fn({ errorMessage: 'Disconnected.' });
+      fn({errorMessage: 'Disconnected.'});
       console.log('The socket received a message after it was disconnected.');
       return;
     }
 
     if (users[userId].sessionId === null) {
-      fn({ errorMessage: 'Not in a session.' });
+      fn({errorMessage: 'Not in a session.'});
       console.log('User ' + userId + ' attempted to leave a session, but the user was not in one.');
       return;
     }
 
-    var sessionId = users[userId].sessionId;
+    const sessionId = users[userId].sessionId;
     leaveSession(true);
 
     fn(null);
@@ -220,17 +221,16 @@ io.on('connection', function(socket) {
 
   socket.on('updateSession', function(data, fn) {
     if (!users.hasOwnProperty(userId)) {
-      fn({ errorMessage: 'Disconnected.' });
+      fn({errorMessage: 'Disconnected.'});
       console.log('The socket received a message after it was disconnected.');
       return;
     }
 
     if (users[userId].sessionId === null) {
-      fn({ errorMessage: 'Not in a session.' });
+      fn({errorMessage: 'Not in a session.'});
       console.log('User ' + userId + ' attempted to update a session, but the user was not in one.');
       return;
     }
-
   });
 
   socket.on('disconnect', function() {
@@ -248,6 +248,6 @@ io.on('connection', function(socket) {
 });
 
 
-var server = http.listen(process.env.PORT || 3000, function() {
+const server = http.listen(process.env.PORT || 3000, function() {
   console.log('Listening on port %d.', server.address().port);
 });

@@ -8,3 +8,30 @@
 5. Username and avatar in chrome cache
 6. AudioCall
 
+``` javascript
+
+tabdetails:{
+  url,
+  scrolllocation,
+  pointers:[
+    {
+        userId:{x:32,y:34}
+    }
+  ],
+}
+events :{
+  joinsession   : sessionId, 
+                : returns {id: ...tabdetail}
+  createsession : ...tabdetail
+                : returns sessionId
+  leavesession  : sessionId
+                :
+  newtab        : id
+                : ;
+  closetab      : id
+                : ;
+  updatetab     : id,tabdetail
+                : ;
+}
+
+```
