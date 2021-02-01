@@ -1,0 +1,16 @@
+{
+  "name": "chromesync-extension",
+  "version": "1.0.0",
+  "description": "All-in-one Party is a Chrome extension for watching video on any streaming site remotely with friends, e.g., for movie nights with that long-distance special someone. It synchronizes video playback and adds group chat.",
+  "main": "background.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "eslint": "^7.19.0",
+    "eslint-config-google": "^0.14.0"
+  }
+}

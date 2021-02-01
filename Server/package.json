@@ -4,7 +4,8 @@
   "description": "A tool for synchronized video streaming",
   "main": "index.js",
   "scripts": {
-    "start": "./node_modules/.bin/forever index.js"
+    "start": "./node_modules/.bin/forever index.js",
+    "devStart": "nodemon --ignore dist/ -e coffee,js,ejs,css --exec 'npm start 8000'"
   },
   "dependencies": {
     "express": "^4.13.3",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "eslint": "^7.19.0",
-    "eslint-config-google": "^0.14.0"
+    "eslint-config-google": "^0.14.0",
+    "nodemon": "^2.0.7"
   }
 }

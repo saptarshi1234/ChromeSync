@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
-    <title>All-in-one Party</title>
+    <title>Chrome Syncy</title>
     <link rel="stylesheet" href="assets/css/bootstrap.css">
     <!-- <link rel="stylesheet" href="normalize.css"> -->
     <link rel="stylesheet" href="/popup.css">
@@ -10,32 +10,31 @@
   </head>
   <body>
     <div class="no-error">
-      <div class="disconnected">
-        <h2>Create an All-in-one Party</h2>
+      <div class="disconnected" id="create-div">
+        <h2>Create a collab session</h2>
         <p>
-          <label><input type="checkbox" id="control-lock"> Only I have control</label>
+          <button id="create-session" type="button" class='btn btn-primary'>Create Collab session</button>
         </p>
+      </div>
+      <div class="disconnected" id="join-div">
+        <h2>Join a collab session</h2>
+        <form action="">
+          <input type="text" id="session-input">
+        </form>
         <p>
-          <button id="create-session" type="button" class='btn btn-primary'>Start the party</button>
+          <button id="join-session" type="button" class='btn btn-primary'>Join session</button>
         </p>
       </div>
       <div class="connected hidden">
-        <p>Share the URL below so others can join the party. The recipient(s) should navigate to this URL and <strong>then click on the All-in-one Party icon</strong> to join.</p>
+        <p>Share the code below so others can join the session. The recipient(s) should enter this code to join.</p>
         <input id="share-url" type="text" readonly="true" autocomplete="off" autofocus />
         <p class="copy-val">
-          <small><a href="#" id="copy-btn">Copy URL</a></small>
-        </p>
-        <p>
-          <label><input type="checkbox" id="show-chat"> Show chat</label>
+          <small><a href="#" id="copy-btn">Copy code</a></small>
         </p>
         <p>
           <button id="leave-session" type="button" class='btn btn-danger'>Disconnect</button>
         </p>
       </div>
-    </div>
-    <div class="some-error hidden">
-      <p id="error-msg" class="error"></p>
-      <p><button id="force-find" type="button" class='hidden'>Force find</button></p>
     </div>
   </body>
 </html>

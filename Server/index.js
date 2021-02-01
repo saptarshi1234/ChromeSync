@@ -134,7 +134,7 @@ io.on('connection', function(socket) {
     sessionId: null,
     socket: socket,
   };
-  socket.emit('userId', userId);
+  socket.emit('userId', {userId});
   console.log('User ' + userId + ' connected.');
 
   // precondition: user userId is in a session
@@ -152,10 +152,11 @@ io.on('connection', function(socket) {
 
 
   socket.on('createSession', function(data, fn) {
+    console.log('index js received create session by socket');
     if (!users.hasOwnProperty(userId)) {
       fn({errorMessage: 'Disconnected.'});
       console.log('The socket received a message after it was disconnected.');
-      return;
+      return; ;
     }
 
     let sessionId = makeId();
@@ -259,7 +260,7 @@ io.on('connection', function(socket) {
   });
 
   socket.on('updateTab', function(data, fn) {
-    const tabId = data.tabId;
+    const tabId = data.id;
     const sessionId = users[userId].sessionId;
     if (!sessions[sessionId].activeTabs.hasOwnProperty(tabId)) {
       fn({errorMessage: 'The tab does not exists'});
