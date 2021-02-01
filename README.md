@@ -10,14 +10,12 @@
 
 ``` javascript
 
-tabdetails:{
-  url,
-  scrolllocation,
-  pointers:[
-    {
-        userId:{x:32,y:34}
-    }
-  ],
+tabdetail:{
+  url: 'http://asda',
+  scrolllocation : {x:12, y:34},
+  pointers: {
+    userId : {x:12, y:34}
+  }
 }
 events :{
   joinsession   : sessionId, 
@@ -33,5 +31,39 @@ events :{
   updatetab     : id,tabdetail
                 : ;
 }
+
+/*
+ in-memory store of all the sessions
+ the keys are the session IDs (strings)
+ the values have the form:
+ id:  {
+   id: 'cba82ca5f59a35e6',                                                                // 8 random octets
+   ownerId: '3d16d961f67e9792',                                                           // id of the session owner (if any)
+   userIds: ['3d16d961f67e9792', ...,],                                                    // ids of the users in the session
+   activeTabs: {
+      id: {
+        id:5,
+        url:"http:a.com/",
+        scrollLocation : {x:12,y:34},
+        pointers: {
+          userId : {x: 12, y:34},
+          ...
+
+        }
+      }
+   },
+
+ }
+*/
+/*
+ in-memory store of all the users
+ the keys are the user IDs (strings)
+ the values have the form: {
+   id: '3d16d961f67e9792',        // 8 random octets
+   sessionId: 'cba82ca5f59a35e6', // id of the session, if one is joined
+   socket: <websocket>,           // the websocket
+ }
+  */
+
 
 ```
