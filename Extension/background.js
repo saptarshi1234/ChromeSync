@@ -98,98 +98,108 @@ function fetchActiveTabs(sendResponse) {
     });
   });
 }
+function onTabCreateListener(tab) {
+  console.log('A tab was created: ', tab);
+  console.log('tab.windowid ', tab.windowId, 'windowid: ', windowId);
+  if (tab.windowId !== windowId) {
+    return;
+  }
 
-function registerTabListeners() {
-  chrome.tabs.onCreated.addListener((tab) => {
-    console.log('A tab was created: ', tab);
-    console.log('tab.windowid ', tab.windowId, 'windowid: ', windowId);
-    if (tab.windowId !== windowId) {
-      return;
-    }
-
-    console.log('emitting create tab with data ', tab);
-    socket.emit('newTab', {
-      id: tab.id,
+  console.log('emitting create tab with data ', tab);
+  socket.emit('newTab', {
+    id: tab.id,
+    url: tab.url,
+  }, (data) => {
+    tabMappings[tab.id] = data.id;
+    tabReverseMappings[data.id] = tab.id;
+    activeTabs[data.id] = {
+      id: data.id,
       url: tab.url,
-    }, (data) => {
-      tabMappings[tab.id] = data.id;
-      tabReverseMappings[data.id] = tab.id;
-      activeTabs[data.id] = {
-        id: data.id,
-        url: tab.url,
-      };
-    });
+    };
   });
+}
 
-  chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
-    console.log('A tab was deleted with tabid', tabId, 'and removeinfo :', removeInfo);
-    if (removeInfo.windowId !== windowId) {
-      return;
-    }
-    if (!activeTabs.hasOwnProperty(tabId)) {
-      // eslint-disable-next-line max-len
-      console.error('Inconsistency: The tab to be removed is not in activeTabs');
-      return;
-    }
-    tabId = tabMappings(tabId);
-    delete activeTabs[tabId];
-    console.log('to remove', removeInfo);
+function onTabRemoveListener(chromeTabId, removeInfo) {
+  console.log('A tab was deleted with tabid', tabId, 'and removeinfo :', removeInfo);
+  tabId = tabMappings[chromeTabId];
+  if (removeInfo.windowId !== windowId) {
+    return;
+  }
+  if (!activeTabs.hasOwnProperty(tabId)) {
+    // eslint-disable-next-line max-len
+    console.error('Inconsistency: The tab to be removed is not in activeTabs');
+    return;
+  }
+  delete activeTabs[tabId];
+  delete tabMappings[chromeTabId];
+  delete tabReverseMappings[tabId];
+  console.log('to remove', removeInfo);
 
-    socket.emit('closeTab', {
-      id: tabId,
-    });
+  socket.emit('closeTab', {
+    id: tabId,
   });
+}
 
-  chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
-    console.log('Updating tab:', tab, 'and change Info', changeInfo);
-    if (tab.windowId !== windowId) {
-      return;
-    }
-    tabId = tabMappings[tabId];
-    if (!activeTabs.hasOwnProperty(tabId)) {
-      // eslint-disable-next-line max-len
-      console.error('Inconsistency: The updated tab is not in activeTabs');
-      return;
-    }
-    let newUrl = '';
-    if (changeInfo.hasOwnProperty(url)) {
-      newUrl = changeInfo.url;
-    } else {
-      newUrl = tab.url;
-    }
-    if (newUrl !== activeTabs[tabId].url) {
-      activeTabs[tabId].url = newUrl;
+function onTabUpdateListener(tabId, changeInfo, tab) {
+  console.log('Updating tab:', tab, 'and change Info', changeInfo);
+  if (tab.windowId !== windowId) {
+    return;
+  }
+  tabId = tabMappings[tabId];
+  if (!activeTabs.hasOwnProperty(tabId)) {
+    // eslint-disable-next-line max-len
+    console.error('Inconsistency: The updated tab is not in activeTabs');
+    return;
+  }
+  let newUrl = '';
+  if (changeInfo.hasOwnProperty(url)) {
+    newUrl = changeInfo.url;
+  } else {
+    newUrl = tab.url;
+  }
+  if (newUrl !== activeTabs[tabId].url) {
+    activeTabs[tabId].url = newUrl;
 
-      console.log('emitting update tab, ', tabId);
-      socket.emit('updateTab', activeTabs[tabId]);
-    }
-  });
+    console.log('emitting update tab, ', tabId);
+    socket.emit('updateTab', activeTabs[tabId]);
+  }
+}
+function registerTabListeners() {
+  chrome.tabs.onCreated.addListener(onTabCreateListener);
+  chrome.tabs.onRemoved.addListener(onTabRemoveListener);
+  chrome.tabs.onUpdated.addListener(onTabUpdateListener);
 
-  chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-    /*
-    request = {
-      type : 'tabInfo',
-      tabId: <tab_id>,
-      scrollLocation: {x: 12, y:45},
-      pointerLocation: {x: 12, y:45},
-    }
-    */
-    if (request.type === 'tabInfo') {
-      const tabId = request.tabId;
-      if (!activeTabs.hasOwnProperty(tabId)) {
-        // eslint-disable-next-line max-len
-        console.error('Inconsistency: Recieved response from untracked tab');
-        return;
-      }
-      activeTabs[tabId].scrollLocation = data.scrollLocation;
-      if (!activeTabs[tabId].hasOwnProperty(pointers)) {
-        activeTabs[tabId].pointers = {};
-      }
-      activeTabs[tabId].pointers[userId] = data.pointerLocation;
-      console.log('Updating tab: ', tabId);
-      socket.emit('updateTab', activeTabs[tabId]);
-    }
-  });
+  // chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
+  //   /*
+  //   request = {
+  //     type : 'tabInfo',
+  //     tabId: <tab_id>,
+  //     scrollLocation: {x: 12, y:45},
+  //     pointerLocation: {x: 12, y:45},
+  //   }
+  //   */
+  //   if (request.type === 'tabInfo') {
+  //     const tabId = request.tabId;
+  //     if (!activeTabs.hasOwnProperty(tabId)) {
+  //       // eslint-disable-next-line max-len
+  //       console.error('Inconsistency: Recieved response from untracked tab');
+  //       return;
+  //     }
+  //     activeTabs[tabId].scrollLocation = data.scrollLocation;
+  //     if (!activeTabs[tabId].hasOwnProperty(pointers)) {
+  //       activeTabs[tabId].pointers = {};
+  //     }
+  //     activeTabs[tabId].pointers[userId] = data.pointerLocation;
+  //     console.log('Updating tab: ', tabId);
+  //     socket.emit('updateTab', activeTabs[tabId]);
+  //   }
+  // });
+}
+
+function unregisterTabListeners() {
+  chrome.tabs.onCreated.removeListener(onTabCreateListener);
+  chrome.tabs.onRemoved.removeListener(onTabRemoveListener);
+  chrome.tabs.onUpdated.removeListener(onTabUpdateListener);
 }
 
 
@@ -200,6 +210,7 @@ socket.on('userId', (data) => {
 
 socket.on('newTab', (data) => {
   console.log('received socket msg to create new tab:', data);
+  unregisterTabListeners();
   chrome.tabs.create({
     active: false,
     url: data.url,
@@ -208,6 +219,7 @@ socket.on('newTab', (data) => {
     console.log(tab);
     tabMappings[tab.id] = data.id;
     tabReverseMappings[data.id] = tab.id;
+    registerTabListeners();
   });
 });
 socket.on('updateTab', (data) => {
@@ -219,9 +231,14 @@ socket.on('updateTab', (data) => {
 });
 socket.on('closeTab', (data) => {
   console.log('closing tab: ', data);
+  unregisterTabListeners();
   const tabId = tabReverseMappings[data.id];
   chrome.tabs.remove([tabId], () => {
-    console.log('deleted tab');
+    console.log('deleted tab', data.id);
+    delete activeTabs[data.id];
+    delete tabMappings[tabId];
+    delete tabReverseMappings[data.id];
+    registerTabListeners();
   });
 });
 
