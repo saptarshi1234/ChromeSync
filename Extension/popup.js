@@ -79,32 +79,29 @@ jQuery(function() {
     });
 
     jQuery('#join-session').click(function() {
-      sessionId = jQuery('session-input').val();
+      sessionId = jQuery('#session-input').val();
       chrome.windows.create({
         focused: true,
         state: 'maximized',
       },
       function(window) {
         console.log(window);
+        windowId = window.id;
+        sendMessage('joinSession', {
+          sessionId: sessionId,
+          windowId: windowId,
+        }, function(response) {
+          console.log('before show connected');
+          showConnected(sessionId);
+        });
       },
       );
-      sendMessage('joinSession', {
-        sessionId: sessionId,
-      }, function(response) {
-        showConnected(sessionId);
-        response.activeTabs.forEach((tab) => {
-          chrome.tabs.create({
-            index: tab.id,
-            windowId: windowId,
-            url: tab.url,
-          });
-        });
-      });
     });
 
     // listen for clicks on the "Leave session" button
     jQuery('#leave-session').click(function() {
       sendMessage('leaveSession', {}, function(response) {
+        console.log('Showing disconnected!');
         showDisconnected();
       });
     });

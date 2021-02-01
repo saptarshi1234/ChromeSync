@@ -1,3 +1,4 @@
+/* eslint-disable max-len */
 /* eslint-disable require-jsdoc */
 'use strict';
 
@@ -35,19 +36,35 @@ activeTabs: {
       }
    },
  */
+// store all tabs with server ids
 let activeTabs = {};
 let userId;
 let sessionId;
 let windowId;
 
-function createSession(wId) {
+// Maps chrome tab ids to the server ids
+let tabMappings = {};
+// Maps server ids to chrome tab ids
+const tabReverseMappings = {};
+
+
+const reverseMappings = () => {
+  for (const key in tabMappings) {
+    if (Object.hasOwnProperty.call(tabMappings, key)) {
+      const value = tabMappings[key];
+      tabReverseMappings[value] = key;
+    }
+  }
+};
+
+function createSession(wId, sendResponse) {
   console.log('wid: ', wId);
   windowId = wId;
-  fetchActiveTabs();
+  fetchActiveTabs(sendResponse);
   registerTabListeners();
 }
 
-function fetchActiveTabs() {
+function fetchActiveTabs(sendResponse) {
   chrome.tabs.query({
     currentWindow: true,
   }, function(tabs) {
@@ -61,26 +78,51 @@ function fetchActiveTabs() {
         };
       }
     });
+    socket.emit('createSession', {activeTabs}, (data) => {
+      sessionId = data.sessionId;
+      tabMappings = data.tabMappings;
+      reverseMappings();
+
+      const temp = Object.assign({}, activeTabs);
+      activeTabs = {};
+      for (const key in temp) {
+        if (Object.hasOwnProperty.call(temp, key)) {
+          const tabInfo = temp[key];
+          const newId = tabMappings[key];
+          tabInfo.id = newId;
+          activeTabs[newId] = tabInfo;
+        }
+      }
+      console.log('Recieved sessionId: ', sessionId);
+      sendResponse(sessionId);
+    });
   });
 }
 
 function registerTabListeners() {
   chrome.tabs.onCreated.addListener((tab) => {
+    console.log('A tab was created: ', tab);
+    console.log('tab.windowid ', tab.windowId, 'windowid: ', windowId);
     if (tab.windowId !== windowId) {
       return;
     }
-    activeTabs[tab.id] = {
+
+    console.log('emitting create tab with data ', tab);
+    socket.emit('newTab', {
       id: tab.id,
       url: tab.url,
-    };
-    console.log('emitting create tab with data ', tab.id, tab.url);
-    socket.emit('createTab', {
-      id: tab.id,
-      url: tab.url,
+    }, (data) => {
+      tabMappings[tab.id] = data.id;
+      tabReverseMappings[data.id] = tab.id;
+      activeTabs[data.id] = {
+        id: data.id,
+        url: tab.url,
+      };
     });
   });
 
   chrome.tabs.onRemoved.addListener((tabId, removeInfo) => {
+    console.log('A tab was deleted with tabid', tabId, 'and removeinfo :', removeInfo);
     if (removeInfo.windowId !== windowId) {
       return;
     }
@@ -89,6 +131,7 @@ function registerTabListeners() {
       console.error('Inconsistency: The tab to be removed is not in activeTabs');
       return;
     }
+    tabId = tabMappings(tabId);
     delete activeTabs[tabId];
     console.log('to remove', removeInfo);
 
@@ -98,16 +141,26 @@ function registerTabListeners() {
   });
 
   chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
+    console.log('Updating tab:', tab, 'and change Info', changeInfo);
     if (tab.windowId !== windowId) {
       return;
     }
+    tabId = tabMappings[tabId];
     if (!activeTabs.hasOwnProperty(tabId)) {
       // eslint-disable-next-line max-len
       console.error('Inconsistency: The updated tab is not in activeTabs');
       return;
     }
+    let newUrl = '';
     if (changeInfo.hasOwnProperty(url)) {
-      activeTabs[tabId].url = changeInfo.url;
+      newUrl = changeInfo.url;
+    } else {
+      newUrl = tab.url;
+    }
+    if (newUrl !== activeTabs[tabId].url) {
+      activeTabs[tabId].url = newUrl;
+
+      console.log('emitting update tab, ', tabId);
       socket.emit('updateTab', activeTabs[tabId]);
     }
   });
@@ -133,6 +186,7 @@ function registerTabListeners() {
         activeTabs[tabId].pointers = {};
       }
       activeTabs[tabId].pointers[userId] = data.pointerLocation;
+      console.log('Updating tab: ', tabId);
       socket.emit('updateTab', activeTabs[tabId]);
     }
   });
@@ -144,34 +198,70 @@ socket.on('userId', (data) => {
   console.log('Recieved userId: ', userId);
 });
 
+socket.on('newTab', (data) => {
+  console.log('received socket msg to create new tab:', data);
+  chrome.tabs.create({
+    active: false,
+    url: data.url,
+    windowId: windowId,
+  }, (tab) => {
+    console.log(tab);
+    tabMappings[tab.id] = data.id;
+    tabReverseMappings[data.id] = tab.id;
+  });
+});
+socket.on('updateTab', (data) => {
+  console.log('received socket msg to update tab: ', data);
+  // chrome.runtime.sendMessage({
+  //   type: 'updateTab',
+  //   data: data,
+  // });
+});
+socket.on('closeTab', (data) => {
+  console.log('closing tab: ', data);
+  const tabId = tabReverseMappings[data.id];
+  chrome.tabs.remove([tabId], () => {
+    console.log('deleted tab');
+  });
+});
 
 // eslint-disable-next-line max-len
 chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
   console.log('receieved request :', request);
   if (request.type === 'createSession') {
-    createSession(request.data.windowId);
-    console.log('background js received createsession');
-
-    socket.emit('createSession', {activeTabs}, (data) => {
-      sessionId = data.sessionId;
-      console.log('Recieved sessionId: ', sessionId);
-      sendResponse(sessionId);
-    });
+    console.log('active tabs are:', activeTabs);
+    console.log('Creating session');
+    createSession(request.data.windowId, sendResponse);
   } else if (request.type === 'joinSession') {
     sessionId = request.data.sessionId;
-    console.log('Emiting join session with sessid: on ID', sessionId); ;
+    windowId = request.data.windowId;
+
+    console.log('Emiting join session with sessid:', sessionId); ;
     socket.emit('joinSession', sessionId, (data) => {
+      console.log('background.js, joinSession:', data);
       activeTabs = data.activeTabs;
-      sendResponse(activeTabs);
+      Object.values(activeTabs).forEach((tab) => {
+        console.log('creating tab', tab);
+        chrome.tabs.create({
+          windowId: windowId,
+          url: tab.url,
+        }, (newTab) => {
+          console.log('New tab is created: ', newTab);
+          tabMappings[newTab.id] = tab.id;
+          tabReverseMappings[tab.id] = newTab.id;
+        });
+      });
+      registerTabListeners();
+      sendResponse(null);
     });
-    registerTabListeners();
   } else if (request.type === 'getSessionId') {
     sendResponse(sessionId);
-  } else if (request.type === 'disconnect') {
+  } else if (request.type === 'leaveSession') {
     sessionId = null;
     userId = null;
     windowId = null;
-    activeTabs = {};
+    // activeTabs = {};
+    console.log('Leaving session');
     socket.emit('leaveSession');
   }
   return true;

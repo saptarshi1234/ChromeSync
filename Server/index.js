@@ -48,19 +48,7 @@ app.use(function(req, res, next) {
    id: 'cba82ca5f59a35e6',                                                                // 8 random octets
    ownerId: '3d16d961f67e9792',                                                           // id of the session owner (if any)
    userIds: ['3d16d961f67e9792', ...,],                                                    // ids of the users in the session
-   activeTabs: {
-      id: {
-        id:5,
-        url:"http:a.com/",
-        scrollLocation : {x:12,y:34},
-        pointers: {
-          userId : {x: 12, y:34},
-          ...
-
-        }
-      }
-   },
-
+   activeTabs: ['3d16d961f67e9792', ...],
  }
 */
 let sessions = {};
@@ -76,6 +64,20 @@ let sessions = {};
   */
 let users = {};
 
+/*
+id: {
+        id:5,
+        url:"http:a.com/",
+        scrollLocation : {x:12,y:34},
+        pointers: {
+          userId : {x: 12, y:34},
+          ...
+
+    }
+
+*/
+let tabs = {};
+
 // generate a random ID with 64 bits of entropy
 // eslint-disable-next-line require-jsdoc
 function makeId() {
@@ -86,7 +88,6 @@ function makeId() {
   }
   return result;
 }
-
 // ////////////////////////////////////////////////////////////////////////
 // Web endpoints                                                        //
 // ////////////////////////////////////////////////////////////////////////
@@ -109,14 +110,18 @@ app.get('/number-of-users', function(req, res) {
   res.send(String(Object.keys(users).length));
 });
 
-app.get('/session-details', function(req, res) {
+app.get('/details', function(req, res) {
   res.setHeader('Content-Type', 'application/json');
-  res.send(JSON.stringify(sessions));
+  res.send(JSON.stringify({
+    sessions,
+    tabs,
+  }));
 });
 
 app.post('/reset', function(req, res) {
   sessions={};
   users={};
+  tabs={};
   res.status(200).send();
 });
 
@@ -152,11 +157,11 @@ io.on('connection', function(socket) {
 
 
   socket.on('createSession', function(data, fn) {
-    console.log('index js received create session by socket');
+    console.log('create session by socket with data:', data);
     if (!users.hasOwnProperty(userId)) {
-      fn({errorMessage: 'Disconnected.'});
+      // fn({errorMessage: 'Disconnected.'});
       console.log('The socket received a message after it was disconnected.');
-      return; ;
+      return;
     }
 
     let sessionId = makeId();
@@ -164,25 +169,44 @@ io.on('connection', function(socket) {
       sessionId = makeId();
     }
 
-    let tabs = {};
     try {
-      tabs = data.activeTabs;
+      const ownerTabs = data.activeTabs;
+
+      const session = {
+        id: sessionId,
+        ownerId: userId,
+        userIds: [userId],
+        activeTabs: [],
+      };
+
+      // Maps owner tab ids to server tab ids
+      const ownerTabMapping = {};
+
+      Object.values(ownerTabs).forEach((t) => {
+        const ownerTabId = t.id;
+
+        let tabId = makeId();
+        while (tabs.hasOwnProperty(tabId)) {
+          tabId = makeId();
+        }
+        ownerTabMapping[ownerTabId] = tabId;
+
+        t.id = tabId;
+        tabs[tabId] = t;
+
+        session.activeTabs.push(tabId);
+      });
+
+      sessions[sessionId] = session;
+      users[userId].sessionId = sessionId;
+      socket.join(sessionId);
+      fn({
+        sessionId,
+        tabMappings: ownerTabMapping,
+      });
     } catch (error) {
-      return;
+
     }
-
-    // NOTE: No validation is done here so send in the exact form as in readme
-
-    const session = {
-      id: sessionId,
-      ownerId: userId,
-      userIds: [userId],
-      activeTabs: tabs,
-    };
-
-    sessions[sessionId] = session;
-    socket.join(sessionId);
-    fn({sessionId});
   });
 
   socket.on('joinSession', function(sessionId, fn) {
@@ -209,66 +233,96 @@ io.on('connection', function(socket) {
     const session = sessions[sessionId];
 
     socket.join(sessionId);
+    console.log(`${userId} joined session ${sessionId}`);
 
-    fn({activeTabs: session.activeTabs});
+    const activeTabs = {};
+    session.activeTabs.forEach((tid) => {
+      activeTabs[tid] = tabs[tid];
+    });
+    fn({activeTabs});
   });
 
   socket.on('leaveSession', function(_, fn) {
     if (!users.hasOwnProperty(userId)) {
-      fn({errorMessage: 'Disconnected.'});
+      // fn({errorMessage: 'Disconnected.'});
       console.log('The socket received a message after it was disconnected.');
       return;
     }
 
     if (users[userId].sessionId === null) {
-      fn({errorMessage: 'Not in a session.'});
+      // fn({errorMessage: 'Not in a session.'});
       console.log('User ' + userId + ' attempted to leave a session, but the user was not in one.');
       return;
     }
 
-    const sessionId = users[userId].sessionId;
-    leaveSession(true);
-    fn(null);
+
+    leaveSession();
     console.log('User ' + userId + ' left session ' + sessionId + '.');
+    if (sessions[sessionId].userIds.length === 0) {
+      delete sessions[sessionId];
+      console.log('Session ' + sessionId + ' was deleted because there were no more users in it.');
+    }
+    // fn(null);
   });
 
   socket.on('newTab', function(data, fn) {
-    const tabId = data.tabId;
-    const url = data.url;
-    const sessionId = users[userId].sessionId;
-    if (sessions[sessionId].activeTabs.hasOwnProperty(tabId)) {
-      fn({errorMessage: 'The tab already exists'});
-      console.log(`User ${userId} attempted to add a new tab with an already existing tab id ${tabId}`);
-      return;
+    console.log('newTab called with data', data);
+
+    let tabId = makeId();
+    while (tabs.hasOwnProperty(tabId)) {
+      tabId = makeId();
     }
-    sessions[sessionId].activeTabs[tabId] = {
-      id: tabId,
-      url: url,
-    };
-    socket.to(sessionId).emit('newTab', data );
+    try {
+      const url = data.url;
+      const sessionId = users[userId].sessionId;
+
+      tabs[tabId] = {
+        id: tabId,
+        url: url,
+      };
+
+      sessions[sessionId].activeTabs.push(tabId);
+      fn(tabs[tabId]);
+      socket.to(sessionId).emit('newTab', tabs[tabId] );
+    } catch (error) {
+      console.log(error);
+    }
   });
   socket.on('closeTab', function(data, fn) {
-    const tabId = data.tabId;
-    const sessionId = users[userId].sessionId;
-    if (!sessions[sessionId].activeTabs.hasOwnProperty(tabId)) {
-      fn({errorMessage: 'The tab does not exists'});
-      console.log(`User ${userId} attempted to close a non existent tab: ${tabId}`);
-      return;
+    console.log('closeTab called with data', data);
+    const tabId = data.id;
+
+    try {
+      const sessionId = users[userId].sessionId;
+      if (!sessions[sessionId].activeTabs.includes(tabId)) {
+        // fn({errorMessage: 'The tab does not exists'});
+        console.log(`User ${userId} attempted to close a non active tab for the session: ${tabId}`);
+        return;
+      }
+      lodash.pull(sessions[sessionId].activeTabs, tabId);
+      delete tabs[tabId];
+      socket.to(sessionId).emit('closeTab', data );
+    } catch (error) {
+      console.log(error);
     }
-    delete sessions[sessionId].activeTabs[tabId];
-    socket.to(sessionId).emit('closeTab', data );
   });
 
   socket.on('updateTab', function(data, fn) {
+    console.log('updateTab called with data', data);
     const tabId = data.id;
-    const sessionId = users[userId].sessionId;
-    if (!sessions[sessionId].activeTabs.hasOwnProperty(tabId)) {
-      fn({errorMessage: 'The tab does not exists'});
-      console.log(`User ${userId} attempted to update a non existent tab: ${tabId}`);
-      return;
+    try {
+      const sessionId = users[userId].sessionId;
+      if (!sessions[sessionId].activeTabs.includes(tabId)) {
+      // fn({errorMessage: 'The tab does not exists'});
+        console.log(`User ${userId} attempted to update a non active tab for the session: ${tabId}`);
+        return;
+      }
+
+      tabs[tabId] = data;
+      socket.to(sessionId).emit('updateTab', data );
+    } catch (error) {
+
     }
-    sessions[sessionId].activeTabs[tabId] = data;
-    socket.to(sessionId).emit('updateTab', data );
   });
 
   socket.on('disconnect', function() {
@@ -278,7 +332,7 @@ io.on('connection', function(socket) {
     }
 
     if (users[userId].sessionId !== null) {
-      leaveSession(true);
+      leaveSession();
     }
     delete users[userId];
     console.log('User ' + userId + ' disconnected.');

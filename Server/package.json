@@ -4,8 +4,8 @@
   "description": "A tool for synchronized video streaming",
   "main": "index.js",
   "scripts": {
-    "start": "./node_modules/.bin/forever index.js",
-    "devStart": "nodemon --ignore dist/ -e coffee,js,ejs,css --exec 'npm start 8000'"
+    "start": "node index.js",
+    "devStart": "nodemon --ignore dist/ -e coffee,js,ejs,css --exec npm start"
   },
   "dependencies": {
     "express": "^4.13.3",
