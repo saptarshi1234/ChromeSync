@@ -18,7 +18,7 @@ chrome.runtime.onInstalled.addListener(function(details) {
   });
 });
 
-const url='http://localhost:3000/';
+const url='https://chromesync.herokuapp.com/';
 const socket = io(url);
 
 

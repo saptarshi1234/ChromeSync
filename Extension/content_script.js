@@ -38,7 +38,7 @@
   "></div>
   `;
 
-  jQuery('body').after(element);
+  document.body.insertAdjacentHTML('beforeEnd', element);
   const dot = document.getElementById('pointer-overlay');
   const dotStyle = dot.style;
 
