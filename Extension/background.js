@@ -52,7 +52,7 @@ const reverseMappings = () => {
   for (const key in tabMappings) {
     if (Object.hasOwnProperty.call(tabMappings, key)) {
       const value = tabMappings[key];
-      tabReverseMappings[value] = key;
+      tabReverseMappings[value] = parseInt(key);
     }
   }
 };
@@ -122,7 +122,7 @@ function onTabCreateListener(tab) {
 }
 
 function onTabRemoveListener(chromeTabId, removeInfo) {
-  tabId = tabMappings[chromeTabId];
+  const tabId = tabMappings[chromeTabId];
   console.log('A tab was deleted with tabid', tabId, 'and removeinfo :', removeInfo);
   if (removeInfo.windowId !== windowId) {
     return;
@@ -221,6 +221,7 @@ socket.on('newTab', (data) => {
     console.log(tab);
     tabMappings[tab.id] = data.id;
     tabReverseMappings[data.id] = tab.id;
+    activeTabs[data.id] = data;
     registerTabListeners();
   });
 });
@@ -228,8 +229,12 @@ socket.on('updateTab', (data) => {
   console.log('received socket msg to update tab: ', data);
   console.log(tabReverseMappings[data.id]);
   chrome.tabs.update(
-      tabReverseMappings[data.id],
+      parseInt(tabReverseMappings[data.id]),
       {url: data.url},
+      (tab) => {
+        console.log('updated: ', tab);
+        activeTabs[data.id] = data;
+      },
   );
   // chrome.runtime.sendMessage({
   //   type: 'updateTab',
@@ -237,10 +242,10 @@ socket.on('updateTab', (data) => {
   // });
 });
 socket.on('closeTab', (data) => {
-  console.log('closing tab: ', data);
   unregisterTabListeners();
   const tabId = tabReverseMappings[data.id];
-  chrome.tabs.remove([tabId], () => {
+  console.log('closing tab: ', tabId);
+  chrome.tabs.remove(tabId, () => {
     console.log('deleted tab', data.id);
     delete activeTabs[data.id];
     delete tabMappings[tabId];
