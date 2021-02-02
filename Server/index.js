@@ -149,10 +149,10 @@ io.on('connection', function(socket) {
     users[userId].sessionId = null;
     socket.leave(sessionId);
 
-    if (sessions[sessionId].userIds.length === 0) {
-      delete sessions[sessionId];
-      console.log('Session ' + sessionId + ' was deleted because there were no more users in it.');
-    }
+    // if (sessions[sessionId].userIds.length === 0) {
+    //   delete sessions[sessionId];
+    //   console.log('Session ' + sessionId + ' was deleted because there were no more users in it.');
+    // }
   };
 
 
@@ -249,6 +249,7 @@ io.on('connection', function(socket) {
       return;
     }
 
+    const sessionId = users[userId].sessionId;
     if (users[userId].sessionId === null) {
       // fn({errorMessage: 'Not in a session.'});
       console.log('User ' + userId + ' attempted to leave a session, but the user was not in one.');
@@ -258,7 +259,7 @@ io.on('connection', function(socket) {
 
     leaveSession();
     console.log('User ' + userId + ' left session ' + sessionId + '.');
-    if (sessions[sessionId].userIds.length === 0) {
+    if (sessions[sessionId] !== undefined && sessions[sessionId].userIds.length === 0) {
       delete sessions[sessionId];
       console.log('Session ' + sessionId + ' was deleted because there were no more users in it.');
     }

@@ -68,6 +68,8 @@ function fetchActiveTabs(sendResponse) {
   chrome.tabs.query({
     currentWindow: true,
   }, function(tabs) {
+    activeTabs = {};
+    console.log(tabs);
     tabs.forEach((tab) => {
       const tabId = tab.id;
       // eslint-disable-next-line max-len
@@ -120,8 +122,8 @@ function onTabCreateListener(tab) {
 }
 
 function onTabRemoveListener(chromeTabId, removeInfo) {
-  console.log('A tab was deleted with tabid', tabId, 'and removeinfo :', removeInfo);
   tabId = tabMappings[chromeTabId];
+  console.log('A tab was deleted with tabid', tabId, 'and removeinfo :', removeInfo);
   if (removeInfo.windowId !== windowId) {
     return;
   }
@@ -224,6 +226,11 @@ socket.on('newTab', (data) => {
 });
 socket.on('updateTab', (data) => {
   console.log('received socket msg to update tab: ', data);
+  console.log(tabReverseMappings[data.id]);
+  chrome.tabs.update(
+      tabReverseMappings[data.id],
+      {url: data.url},
+  );
   // chrome.runtime.sendMessage({
   //   type: 'updateTab',
   //   data: data,
