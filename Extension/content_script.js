@@ -5,15 +5,53 @@
   let userId;
   let scrollEnable = false;
 
+  function getMaxScrollY() {
+    const scrollHeight = Math.max(
+        document.body.scrollHeight, document.documentElement.scrollHeight,
+        document.body.offsetHeight, document.documentElement.offsetHeight,
+        document.body.clientHeight, document.documentElement.clientHeight,
+    );
+    return scrollHeight;
+  }
+
+  function getMaxScrollX() {
+    const scrollWidth = Math.max(
+        document.body.scrollWidth, document.documentElement.scrollWidth,
+        document.body.offsetWidth, document.documentElement.offsetWidth,
+        document.body.clientWidth, document.documentElement.clientWidth,
+    );
+    return scrollWidth;
+  }
+
+
+  const element = `<div id="pointer-overlay" style="
+  position: fixed;
+  display: block;
+  width: 10px;
+  height: 10px;
+  top: 200px;
+  left: 100px;
+  background-color: rgb(255 25 25 / 94%);
+  z-index: 2;
+  cursor: pointer;
+  border-radius: 5px;
+  "></div>
+  `;
+
+  jQuery('body').after(element);
+  const dot = document.getElementById('pointer-overlay');
+  const dotStyle = dot.style;
+
   setInterval(() => {
     scrollEnable = !scrollEnable;
-  }, 100);
+  }, 2);
 
   window.onscroll = (data) => {
     if (scrollEnable) return;
     console.log('On scroll fired with data: ', data);
     console.log(window.scrollX, window.scrollY);
-    tabData.scrollLocation = {x: window.scrollX, y: window.scrollY};
+    // eslint-disable-next-line max-len
+    tabData.scrollLocation = {x: window.scrollX / getMaxScrollX(), y: window.scrollY / getMaxScrollY()};
     sendTabInfo();
   };
 
@@ -70,11 +108,18 @@
 
   function updateWindowScroll(x, y) {
     if (!scrollEnable) return;
-    window.scrollTo(x, y);
+    window.scrollTo(x * getMaxScrollX(), y * getMaxScrollY());
     return;
   }
   function updatePointers(pointers) {
-    console.log(pointers);
+    console.log('the pointers are', pointers);
+    Object.keys(pointers).forEach((uId) => {
+      if (uId !== userId) {
+        const pointer = pointers[uId];
+        dotStyle.top = `${pointer.y * window.innerHeight}px`;
+        dotStyle.left = `${pointer.x * window.innerWidth}px`;
+      }
+    });
     // TODO update pointers of all users
     return;
   }
