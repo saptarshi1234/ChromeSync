@@ -97,6 +97,10 @@ function fetchActiveTabs(sendResponse) {
       }
       console.log('Recieved sessionId: ', sessionId);
       sendResponse(sessionId);
+      Object.keys(tabMappings).forEach((tid) => {
+        executeContentScript(parseInt(tid));
+        console.log('executing content script on ', tid);
+      });
     });
   });
 }
@@ -106,6 +110,7 @@ function onTabCreateListener(tab) {
   if (tab.windowId !== windowId) {
     return;
   }
+  executeContentScript(tab.id);
 
   console.log('emitting create tab with data ', tab);
   socket.emit('newTab', {
@@ -161,47 +166,63 @@ function onTabUpdateListener(tabId, changeInfo, tab) {
   }
   if (newUrl !== activeTabs[tabId].url) {
     activeTabs[tabId].url = newUrl;
+    executeContentScript(tabReverseMappings[tabId]);
 
     console.log('emitting update tab, ', tabId);
     socket.emit('updateTab', activeTabs[tabId]);
+  }
+  if (changeInfo.status === 'complete') {
+    executeContentScript(tabReverseMappings[tabId]);
+  }
+}
+
+function executeContentScript(tabId) {
+  chrome.tabs.executeScript(tabId, {
+    file: 'content_script.js',
+  }, (result) => {
+    console.log('Content script succesfully executed on tabId: ', tabId, 'result: ', result );
+    chrome.tabs.sendMessage(tabId, {type: 'updateTab', data: activeTabs[tabMappings[tabId]], userId: userId}, () => {
+      console.log('Tab info delievered to tab', tabId);
+    });
+  });
+}
+
+function onUpdateContentListener(request, sender, sendResponse) {
+  /*
+  request = {
+    type : 'tabInfo',
+    tabId: <tab_id>,
+    scrollLocation: {x: 12, y:45},
+    pointerLocation: {x: 12, y:45},
+  }
+  */
+  console.log('********* onupdatelistener called');
+  if (request.type === 'tabInfo') {
+    const data = request.data;
+    const serverTabId = data.id;
+
+    if (!activeTabs.hasOwnProperty(serverTabId)) {
+      // eslint-disable-next-line max-len
+      console.error('Inconsistency: Recieved response from untracked tab');
+      return;
+    }
+    activeTabs[serverTabId] = data;
+    console.log('Updating tab from content script for tab: ', serverTabId, 'with data: ', data);
+    socket.emit('updateTab', activeTabs[serverTabId]);
   }
 }
 function registerTabListeners() {
   chrome.tabs.onCreated.addListener(onTabCreateListener);
   chrome.tabs.onRemoved.addListener(onTabRemoveListener);
   chrome.tabs.onUpdated.addListener(onTabUpdateListener);
-
-  // chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
-  //   /*
-  //   request = {
-  //     type : 'tabInfo',
-  //     tabId: <tab_id>,
-  //     scrollLocation: {x: 12, y:45},
-  //     pointerLocation: {x: 12, y:45},
-  //   }
-  //   */
-  //   if (request.type === 'tabInfo') {
-  //     const tabId = request.tabId;
-  //     if (!activeTabs.hasOwnProperty(tabId)) {
-  //       // eslint-disable-next-line max-len
-  //       console.error('Inconsistency: Recieved response from untracked tab');
-  //       return;
-  //     }
-  //     activeTabs[tabId].scrollLocation = data.scrollLocation;
-  //     if (!activeTabs[tabId].hasOwnProperty(pointers)) {
-  //       activeTabs[tabId].pointers = {};
-  //     }
-  //     activeTabs[tabId].pointers[userId] = data.pointerLocation;
-  //     console.log('Updating tab: ', tabId);
-  //     socket.emit('updateTab', activeTabs[tabId]);
-  //   }
-  // });
+  chrome.runtime.onMessage.addListener(onUpdateContentListener);
 }
 
 function unregisterTabListeners() {
   chrome.tabs.onCreated.removeListener(onTabCreateListener);
   chrome.tabs.onRemoved.removeListener(onTabRemoveListener);
   chrome.tabs.onUpdated.removeListener(onTabUpdateListener);
+  chrome.runtime.onMessage.removeListener(onUpdateContentListener);
 }
 
 
@@ -222,24 +243,33 @@ socket.on('newTab', (data) => {
     tabMappings[tab.id] = data.id;
     tabReverseMappings[data.id] = tab.id;
     activeTabs[data.id] = data;
+    executeContentScript(tab.id);
     registerTabListeners();
   });
 });
 socket.on('updateTab', (data) => {
-  console.log('received socket msg to update tab: ', data);
-  console.log(tabReverseMappings[data.id]);
-  chrome.tabs.update(
-      parseInt(tabReverseMappings[data.id]),
-      {url: data.url},
-      (tab) => {
-        console.log('updated: ', tab);
-        activeTabs[data.id] = data;
-      },
-  );
-  // chrome.runtime.sendMessage({
-  //   type: 'updateTab',
-  //   data: data,
-  // });
+  const chromeTabId = tabReverseMappings[data.id];
+  const updateContentScript = () => {
+    chrome.tabs.sendMessage(chromeTabId, {
+      type: 'updateTab',
+      data: data,
+    }, () => {
+      console.log('updateTab message sent to tabId: ', chromeTabId, ' with data: ', data);
+    });
+  };
+  console.log('received socket msg to update tab: ', data, 'for tabId: ', chromeTabId);
+  if (data.url !== activeTabs[data.id].url) {
+    chrome.tabs.update(
+        chromeTabId,
+        {url: data.url},
+        (tab) => {
+          console.log('updated url: ', tab);
+          activeTabs[data.id] = data;
+          executeContentScript(tab.id);
+        },
+    );
+  }
+  updateContentScript();
 });
 socket.on('closeTab', (data) => {
   unregisterTabListeners();
@@ -278,6 +308,7 @@ chrome.runtime.onMessage.addListener(function(request, sender, sendResponse) {
           console.log('New tab is created: ', newTab);
           tabMappings[newTab.id] = tab.id;
           tabReverseMappings[tab.id] = newTab.id;
+          executeContentScript(newTab.id);
         });
       });
       registerTabListeners();
