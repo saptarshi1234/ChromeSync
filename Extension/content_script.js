@@ -1,9 +1,11 @@
+/* eslint-disable max-len */
 (function() {
   /* eslint-disable require-jsdoc */
   let pointerLocation = {x: 0, y: 0};
   let tabData;
   let userId;
   let scrollEnable = false;
+  const dots = {};
 
   function getMaxScrollY() {
     const scrollHeight = Math.max(
@@ -23,28 +25,38 @@
     return scrollWidth;
   }
 
+  function getRandomColor() {
+    return parseInt(Math.random()*255);
+  }
 
-  const element = `<div id="pointer-overlay" style="
-  position: fixed;
-  display: block;
-  width: 10px;
-  height: 10px;
-  top: 200px;
-  left: 100px;
-  background-color: rgb(255 25 25 / 94%);
-  z-index: 2;
-  cursor: pointer;
-  border-radius: 5px;
-  "></div>
-  `;
+  function createDot(uid) {
+    const existingDot = document.getElementById(`pointer-overlay-${uid}`);
+    if (existingDot !== null) {
+      dots[uid] = existingDot;
+      return;
+    }
+    const element = `<div id="pointer-overlay-${uid}" style="
+      position: fixed;
+      display: block;
+      width: 10px;
+      height: 10px;
+      top: 200px;
+      left: 100px;
+      background-color: rgb(${getRandomColor()} ${getRandomColor()} ${getRandomColor()} / 94%);
+      z-index: 2;
+      cursor: pointer;
+      border-radius: 5px;
+      "></div>
+      `;
+    document.body.insertAdjacentHTML('beforeEnd', element);
+    const dot = document.getElementById(`pointer-overlay-${uid}`);
+    dots[uid] = dot;
+  }
 
-  document.body.insertAdjacentHTML('beforeEnd', element);
-  const dot = document.getElementById('pointer-overlay');
-  const dotStyle = dot.style;
 
   setInterval(() => {
     scrollEnable = !scrollEnable;
-  }, 2);
+  }, 5);
 
   window.onscroll = (data) => {
     if (scrollEnable) return;
@@ -66,8 +78,8 @@
     if (!tabData.hasOwnProperty('pointers')) {
       tabData.pointers = {};
     }
-    const relativeX = x / window.innerWidth;
-    const relativeY = y / window.innerHeight;
+    const relativeX = x / window.outerWidth;
+    const relativeY = y / window.outerHeight;
     tabData.pointers[userId] = {
       x: relativeX, y: relativeY,
     };
@@ -111,13 +123,19 @@
     window.scrollTo(x * getMaxScrollX(), y * getMaxScrollY());
     return;
   }
+
   function updatePointers(pointers) {
     console.log('the pointers are', pointers);
     Object.keys(pointers).forEach((uId) => {
       if (uId !== userId) {
         const pointer = pointers[uId];
-        dotStyle.top = `${pointer.y * window.innerHeight}px`;
-        dotStyle.left = `${pointer.x * window.innerWidth}px`;
+        if (!dots.hasOwnProperty(uId)) {
+          createDot(uId);
+          console.log('dots are: ', dots);
+        }
+        const dot = dots[uId];
+        dot.style.top = `${pointer.y * window.outerHeight}px`;
+        dot.style.left = `${pointer.x * window.outerWidth}px`;
       }
     });
     // TODO update pointers of all users

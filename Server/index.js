@@ -260,9 +260,14 @@ io.on('connection', function(socket) {
     leaveSession();
     console.log('User ' + userId + ' left session ' + sessionId + '.');
     if (sessions[sessionId] !== undefined && sessions[sessionId].userIds.length === 0) {
+      sessions[sessionId].activeTabs.forEach((tid) => {
+        delete tabs[tid];
+        console.log(`Deleted tab ${tid} from tabs`);
+      });
       delete sessions[sessionId];
       console.log('Session ' + sessionId + ' was deleted because there were no more users in it.');
     }
+    socket.disconnect(true);
     // fn(null);
   });
 
