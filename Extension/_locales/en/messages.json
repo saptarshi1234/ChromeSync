@@ -1,10 +1,10 @@
 {
   "extName": {
     "message": "ChromeSync",
-    "description": "Extension name"
+    "description": ""
   },
   "extDescription": {
-    "message": "Includes logic from Netflix Party",
+    "message": "An tool for online collaborative research on the web",
     "description": "none"
   }
 }
